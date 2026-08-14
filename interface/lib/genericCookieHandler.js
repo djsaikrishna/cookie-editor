@@ -17,28 +17,13 @@ export class GenericCookieHandler extends EventEmitter {
 
   /**
    * Gets all cookie for the current tab.
-   * @param {function} callback
+   * @return {Promise}
    */
-  getAllCookies(callback) {
-    if (this.browserDetector.supportsPromises()) {
-      this.browserDetector
-        .getApi()
-        .cookies.getAll({
-          url: this.currentTab.url,
-          storeId: this.currentTab.cookieStoreId,
-        })
-        .then(callback, function (e) {
-          console.error('Failed to retrieve cookies', e);
-        });
-    } else {
-      this.browserDetector.getApi().cookies.getAll(
-        {
-          url: this.currentTab.url,
-          storeId: this.currentTab.cookieStoreId,
-        },
-        callback
-      );
-    }
+  async getAllCookies() {
+    return this.browserDetector.getApi().cookies.getAll({
+      url: this.currentTab.url,
+      storeId: this.currentTab.cookieStoreId,
+    });
   }
 
   /**
@@ -92,121 +77,45 @@ export class GenericCookieHandler extends EventEmitter {
    * one.
    * @param {Cookie} cookie Cookie's data.
    * @param {string} url The url to attach the cookie to.
-   * @param {function} callback
+   * @return {Promise}
    */
-  saveCookie(cookie, url, callback) {
+  async saveCookie(cookie, url) {
     cookie = this.prepareCookie(cookie, url);
-    if (this.browserDetector.supportsPromises()) {
-      this.browserDetector
-        .getApi()
-        .cookies.set(cookie)
-        .then(
-          (cookie, a, b, c) => {
-            if (callback) {
-              callback(null, cookie);
-            }
-          },
-          error => {
-            console.error('Failed to create cookie', error);
-            if (callback) {
-              callback(error.message, null);
-            }
-          }
-        );
-    } else {
-      this.browserDetector.getApi().cookies.set(cookie, cookieResponse => {
-        const error = this.browserDetector.getApi().runtime.lastError;
-        if (!cookieResponse || error) {
-          console.error('Failed to create cookie', error);
-          if (callback) {
-            const errorMessage =
-              (error ? error.message : '') || 'Unknown error';
-            return callback(errorMessage, cookieResponse);
-          }
-          return;
-        }
-
-        if (callback) {
-          return callback(null, cookieResponse);
-        }
-      });
-    }
+    return this.browserDetector.getApi().cookies.set(cookie);
   }
 
   /**
    * Removes a cookie from the browser.
    * @param {string} name The name of the cookie to remove.
    * @param {string} url The url that the cookie is attached to.
-   * @param {function} callback
    * @param {boolean} isRecursive
+   * @return {Promise}
    */
-  removeCookie(name, url, callback, isRecursive = false) {
+  async removeCookie(name, url, isRecursive = false) {
     // Bad hack on safari because cookies needs to have the very exact same domain
     // to be able to delete it.
     // TODO: Check if this hack is needed on devtools.
     if (this.browserDetector.isSafari() && !isRecursive) {
-      this.getAllCookies(cookies => {
-        for (const cookie of cookies) {
-          if (cookie.name === name) {
-            this.removeCookie(name, 'http://' + cookie.domain, callback, true);
-          }
+      const cookies = await this.getAllCookies();
+      for (const cookie of cookies) {
+        if (cookie.name === name) {
+          await this.removeCookie(name, 'http://' + cookie.domain, true);
         }
-      });
-    } else if (this.browserDetector.supportsPromises()) {
-      this.browserDetector
-        .getApi()
-        .cookies.remove({
-          name: name,
-          url: url,
-          storeId: this.currentTab.cookieStoreId,
-        })
-        .then(callback, function (e) {
-          console.error('Failed to remove cookies', e);
-          if (callback) {
-            callback();
-          }
-        });
+      }
     } else {
-      this.browserDetector.getApi().cookies.remove(
-        {
-          name: name,
-          url: url,
-          storeId: this.currentTab.cookieStoreId,
-        },
-        cookieResponse => {
-          const error = this.browserDetector.getApi().runtime.lastError;
-          if (!cookieResponse || error) {
-            console.error('Failed to remove cookie', error);
-            if (callback) {
-              const errorMessage =
-                (error ? error.message : '') || 'Unknown error';
-              return callback(errorMessage, cookieResponse);
-            }
-            return;
-          }
-
-          if (callback) {
-            return callback(null, cookieResponse);
-          }
-        }
-      );
+      return this.browserDetector.getApi().cookies.remove({
+        name: name,
+        url: url,
+        storeId: this.currentTab.cookieStoreId,
+      });
     }
   }
 
   /**
    * Gets all the cookies from the browser.
-   * @param {function} callback
+   * @return {Promise}
    */
-  getAllCookiesInBrowser(callback) {
-    if (this.browserDetector.supportsPromises()) {
-      this.browserDetector
-        .getApi()
-        .cookies.getAll({})
-        .then(callback, function (e) {
-          console.error('Failed to retrieve cookies', e);
-        });
-    } else {
-      this.browserDetector.getApi().cookies.getAll({}, callback);
-    }
+  async getAllCookiesInBrowser() {
+    return this.browserDetector.getApi().cookies.getAll({});
   }
 }

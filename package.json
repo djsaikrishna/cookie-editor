@@ -1,6 +1,7 @@
 {
   "name": "cookie-editor",
   "version": "1.13.0",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/Moustachauve/cookie-editor.git"
@@ -22,9 +23,11 @@
     "grunt-replace": "^2.0.2",
     "prettier": "^3.5.3",
     "prettier-eslint": "^16.4.2",
-    "prettier-plugin-organize-imports": "^4.1.0"
+    "prettier-plugin-organize-imports": "^4.1.0",
+    "sinon": "^22.1.0"
   },
   "scripts": {
+    "test": "node --test test/*.test.js",
     "lint": "eslint . --config eslint.config.mjs",
     "lint:fix": "eslint . --fix --config eslint.config.mjs"
   }

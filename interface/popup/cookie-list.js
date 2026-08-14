@@ -67,11 +67,16 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
      * @param {Element} e Delete button element.
      * @return {false} returns false to prevent click event propagation.
      */
-    function deleteButton(e) {
+    async function deleteButton(e) {
       e.preventDefault();
       console.log('removing cookie...');
       const listElement = e.target.closest('li');
-      removeCookie(listElement.dataset.name);
+      try {
+        await removeCookie(listElement.dataset.name);
+      } catch (error) {
+        console.error(error);
+        sendNotification(error.message || String(error));
+      }
       return false;
     }
 
@@ -80,7 +85,7 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
      * @param {element} form Form element that contains the cookie fields.
      * @return {false} returns false to prevent click event propagation.
      */
-    function saveCookieForm(form) {
+    async function saveCookieForm(form) {
       const isCreateForm = form.classList.contains('create');
 
       const id = form.dataset.id;
@@ -106,7 +111,7 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
         secure = form.querySelector('input[name="secure"]').checked;
         httpOnly = form.querySelector('input[name="httpOnly"]').checked;
       }
-      saveCookie(
+      await saveCookie(
         id,
         name,
         value,
@@ -141,7 +146,7 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
      * @param {boolean} secure
      * @param {boolean} httpOnly
      */
-    function saveCookie(
+    async function saveCookie(
       id,
       name,
       value,
@@ -206,44 +211,22 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
         }
       }
 
-      if (oldName !== name || oldHostOnly !== hostOnly) {
-        cookieHandler.removeCookie(oldName, getCurrentTabUrl(), function () {
-          cookieHandler.saveCookie(
-            cookie,
-            getCurrentTabUrl(),
-            function (error, cookie) {
-              if (error) {
-                sendNotification(error);
-                return;
-              }
-              if (browserDetector.isSafari()) {
-                onCookiesChanged();
-              }
-              if (cookieContainer) {
-                cookieContainer.showSuccessAnimation();
-              }
-            }
-          );
-        });
-      } else {
-        // Should probably put in a function to prevent duplication
-        cookieHandler.saveCookie(
-          cookie,
-          getCurrentTabUrl(),
-          function (error, cookie) {
-            if (error) {
-              sendNotification(error);
-              return;
-            }
-            if (browserDetector.isSafari()) {
-              onCookiesChanged();
-            }
+      // Should probably put in a function to prevent duplication
+      try {
+        if (oldName !== name || oldHostOnly !== hostOnly) {
+          await removeCookie(oldName, getCurrentTabUrl());
+        }
 
-            if (cookieContainer) {
-              cookieContainer.showSuccessAnimation();
-            }
-          }
-        );
+        await cookieHandler.saveCookie(cookie, getCurrentTabUrl());
+        if (browserDetector.isSafari()) {
+          onCookiesChanged();
+        }
+
+        if (cookieContainer) {
+          cookieContainer.showSuccessAnimation();
+        }
+      } catch (error) {
+        sendNotification(error.message || String(error));
       }
     }
 
@@ -311,7 +294,7 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
 
     document
       .getElementById('delete-all-cookies')
-      .addEventListener('click', () => {
+      .addEventListener('click', async () => {
         const buttonIcon = document
           .getElementById('delete-all-cookies')
           .querySelector('use');
@@ -319,13 +302,22 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
           return;
         }
         if (loadedCookies && Object.keys(loadedCookies).length) {
+          let hasErrors = false;
           for (const cookieId in loadedCookies) {
             if (Object.prototype.hasOwnProperty.call(loadedCookies, cookieId)) {
-              removeCookie(loadedCookies[cookieId].cookie.name);
+              try {
+                await removeCookie(loadedCookies[cookieId].cookie.name);
+              } catch (error) {
+                console.error(error);
+                hasErrors = true;
+                sendNotification(error.message || String(error));
+              }
             }
           }
+          if (!hasErrors) {
+            sendNotification('All cookies were deleted');
+          }
         }
-        sendNotification('All cookies were deleted');
         buttonIcon.setAttribute('href', '../sprites/solid.svg#check');
         setTimeout(() => {
           buttonIcon.setAttribute('href', '../sprites/solid.svg#trash');
@@ -389,7 +381,7 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
 
     document
       .getElementById('save-import-cookie')
-      .addEventListener('click', e => {
+      .addEventListener('click', async e => {
         const buttonIcon = document
           .getElementById('save-import-cookie')
           .querySelector('use');
@@ -450,18 +442,10 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
           }
 
           try {
-            cookieHandler.saveCookie(
-              cookie,
-              getCurrentTabUrl(),
-              function (error, cookie) {
-                if (error) {
-                  sendNotification(error);
-                }
-              }
-            );
+            await cookieHandler.saveCookie(cookie, getCurrentTabUrl());
           } catch (error) {
             console.error(error);
-            sendNotification(error);
+            sendNotification(error.message || String(error));
           }
         }
 
@@ -541,13 +525,16 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
 
     adjustWidthIfSmaller();
 
-    if (chrome && chrome.runtime && chrome.runtime.getBrowserInfo) {
-      chrome.runtime.getBrowserInfo(function (info) {
-        const mainVersion = info.version.split('.')[0];
+    if (browserDetector.getApi()?.runtime?.getBrowserInfo) {
+      try {
+        const info = await browserDetector.getApi().runtime.getBrowserInfo();
+        const mainVersion = parseInt(info.version.split('.')[0], 10);
         if (mainVersion < 57) {
           containerCookie.style.height = '600px';
         }
-      });
+      } catch (e) {
+        /* empty */
+      }
     }
   });
 
@@ -595,40 +582,40 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
       return;
     }
 
-    cookieHandler.getAllCookies(function (cookies) {
-      cookies = cookies.sort(sortCookiesByName);
+    const cookies = (await cookieHandler.getAllCookies()).sort(
+      sortCookiesByName
+    );
 
-      loadedCookies = {};
+    loadedCookies = {};
 
-      if (cookies.length === 0) {
-        showNoCookies();
-        return;
-      }
+    if (cookies.length === 0) {
+      showNoCookies();
+      return;
+    }
 
-      cookiesListHtml = document.createElement('ul');
-      cookiesListHtml.appendChild(generateSearchBar());
-      cookies.forEach(function (cookie) {
-        const id = Cookie.hashCode(cookie);
-        loadedCookies[id] = new Cookie(id, cookie, optionHandler);
-        cookiesListHtml.appendChild(loadedCookies[id].html);
-      });
-
-      if (containerCookie.firstChild) {
-        disableButtons = true;
-        Animate.transitionPage(
-          containerCookie,
-          containerCookie.firstChild,
-          cookiesListHtml,
-          'right',
-          () => {
-            disableButtons = false;
-          },
-          optionHandler.getAnimationsEnabled()
-        );
-      } else {
-        containerCookie.appendChild(cookiesListHtml);
-      }
+    cookiesListHtml = document.createElement('ul');
+    cookiesListHtml.appendChild(generateSearchBar());
+    cookies.forEach(function (cookie) {
+      const id = Cookie.hashCode(cookie);
+      loadedCookies[id] = new Cookie(id, cookie, optionHandler);
+      cookiesListHtml.appendChild(loadedCookies[id].html);
     });
+
+    if (containerCookie.firstChild) {
+      disableButtons = true;
+      Animate.transitionPage(
+        containerCookie,
+        containerCookie.firstChild,
+        cookiesListHtml,
+        'right',
+        () => {
+          disableButtons = false;
+        },
+        optionHandler.getAnimationsEnabled()
+      );
+    } else {
+      containerCookie.appendChild(cookiesListHtml);
+    }
   }
 
   /**
@@ -922,7 +909,7 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
   /**
    * Exports all the cookies for the current tab in the JSON format.
    */
-  function exportToJson() {
+  async function exportToJson() {
     hideExportMenu();
     const buttonIcon = document
       .getElementById('export-cookies')
@@ -986,18 +973,12 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
    * Removes a cookie from the current tab.
    * @param {string} name Name of the cookie to remove.
    * @param {string} url Url of the tab that contains the cookie.
-   * @param {function} callback
    */
-  function removeCookie(name, url, callback) {
-    cookieHandler.removeCookie(name, url || getCurrentTabUrl(), function (e) {
-      console.log('removed successfuly', e);
-      if (callback) {
-        callback();
-      }
-      if (browserDetector.isSafari()) {
-        onCookiesChanged();
-      }
-    });
+  async function removeCookie(name, url) {
+    await cookieHandler.removeCookie(name, url || getCurrentTabUrl());
+    if (browserDetector.isSafari()) {
+      onCookiesChanged();
+    }
   }
 
   /**
