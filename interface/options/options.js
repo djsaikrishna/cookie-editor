@@ -144,8 +144,8 @@ document.addEventListener('DOMContentLoaded', async event => {
     await getAllPermissions();
     const cookies = await cookieHandler.getAllCookiesInBrowser();
     const loadedCookies = {};
-    for (const cookie of cookies) {
-      const id = Cookie.hashCode(cookie);
+    for (const [index, cookie] of cookies.entries()) {
+      const id = `${Cookie.hashCode(cookie)}_${index}`;
       loadedCookies[id] = new Cookie(id, cookie, optionHandler);
     }
     return loadedCookies;

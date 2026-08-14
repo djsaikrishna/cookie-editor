@@ -11,6 +11,15 @@ import { PermissionHandler } from './interface/lib/permissionHandler.js';
   const browserDetector = new BrowserDetector();
   const permissionHandler = new PermissionHandler(browserDetector);
 
+  // Setting up event listeners synchronously at startup for service worker lifecycle
+  browserDetector.getApi().runtime.onConnect.addListener(onConnect);
+  browserDetector.getApi().runtime.onMessage.addListener(handleMessage);
+  browserDetector.getApi().tabs.onUpdated.addListener(onTabsChanged);
+
+  if (!browserDetector.isSafari()) {
+    browserDetector.getApi().cookies.onChanged.addListener(onCookiesChanged);
+  }
+
   if (await isFirefoxAndroid()) {
     const popupOptions = {
       popup: '/interface/popup-mobile/cookie-list.html',
@@ -39,15 +48,6 @@ import { PermissionHandler } from './interface/lib/permissionHandler.js';
       });
   }
 
-  // Setting up event listeners
-  browserDetector.getApi().runtime.onConnect.addListener(onConnect);
-  browserDetector.getApi().runtime.onMessage.addListener(handleMessage);
-  browserDetector.getApi().tabs.onUpdated.addListener(onTabsChanged);
-
-  if (!browserDetector.isSafari()) {
-    browserDetector.getApi().cookies.onChanged.addListener(onCookiesChanged);
-  }
-
   /**
    * Handles messages coming from the front end, mostly from the dev tools.
    * Devtools require special handling because not all APIs are available in
@@ -62,14 +62,29 @@ import { PermissionHandler } from './interface/lib/permissionHandler.js';
     console.log('message received: ' + (request.type || 'unknown'));
     switch (request.type) {
       case 'getTabs': {
-        browserDetector.getApi().tabs.query({}).then(sendResponse);
+        browserDetector
+          .getApi()
+          .tabs.query({})
+          .then(sendResponse, error => {
+            console.error('Failed to get tabs', error);
+            sendResponse({
+              success: false,
+              error: error?.message || String(error),
+            });
+          });
         return true;
       }
       case 'getCurrentTab': {
         browserDetector
           .getApi()
           .tabs.query({ active: true, currentWindow: true })
-          .then(sendResponse);
+          .then(sendResponse, error => {
+            console.error('Failed to get current tab', error);
+            sendResponse({
+              success: false,
+              error: error?.message || String(error),
+            });
+          });
         return true;
       }
       case 'getAllCookies': {
@@ -82,7 +97,13 @@ import { PermissionHandler } from './interface/lib/permissionHandler.js';
         browserDetector
           .getApi()
           .cookies.getAll(getAllCookiesParams)
-          .then(sendResponse);
+          .then(sendResponse, error => {
+            console.error('Failed to get all cookies', error);
+            sendResponse({
+              success: false,
+              error: error?.message || String(error),
+            });
+          });
         return true;
       }
       case 'saveCookie': {
@@ -111,15 +132,37 @@ import { PermissionHandler } from './interface/lib/permissionHandler.js';
         browserDetector
           .getApi()
           .cookies.remove(removeParams)
-          .then(sendResponse);
+          .then(sendResponse, error => {
+            console.error('Failed to remove cookie', error);
+            sendResponse({
+              success: false,
+              error: error?.message || String(error),
+            });
+          });
         return true;
       }
       case 'permissionsContains': {
-        permissionHandler.checkPermissions(request.params).then(sendResponse);
+        permissionHandler
+          .checkPermissions(request.params)
+          .then(sendResponse, error => {
+            console.error('Failed to check permissions', error);
+            sendResponse({
+              success: false,
+              error: error?.message || String(error),
+            });
+          });
         return true;
       }
       case 'permissionsRequest': {
-        permissionHandler.requestPermission(request.params).then(sendResponse);
+        permissionHandler
+          .requestPermission(request.params)
+          .then(sendResponse, error => {
+            console.error('Failed to request permission', error);
+            sendResponse({
+              success: false,
+              error: error?.message || String(error),
+            });
+          });
         return true;
       }
       case 'optionsChanged': {

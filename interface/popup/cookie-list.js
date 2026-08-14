@@ -71,7 +71,12 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
       e.preventDefault();
       console.log('removing cookie...');
       const listElement = e.target.closest('li');
-      await removeCookie(listElement.dataset.name);
+      try {
+        await removeCookie(listElement.dataset.name);
+      } catch (error) {
+        console.error(error);
+        sendNotification(error.message || String(error));
+      }
       return false;
     }
 
@@ -206,12 +211,12 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
         }
       }
 
-      if (oldName !== name || oldHostOnly !== hostOnly) {
-        await removeCookie(oldName, getCurrentTabUrl());
-      }
-
       // Should probably put in a function to prevent duplication
       try {
+        if (oldName !== name || oldHostOnly !== hostOnly) {
+          await removeCookie(oldName, getCurrentTabUrl());
+        }
+
         await cookieHandler.saveCookie(cookie, getCurrentTabUrl());
         if (browserDetector.isSafari()) {
           onCookiesChanged();
@@ -297,13 +302,22 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
           return;
         }
         if (loadedCookies && Object.keys(loadedCookies).length) {
+          let hasErrors = false;
           for (const cookieId in loadedCookies) {
             if (Object.prototype.hasOwnProperty.call(loadedCookies, cookieId)) {
-              await removeCookie(loadedCookies[cookieId].cookie.name);
+              try {
+                await removeCookie(loadedCookies[cookieId].cookie.name);
+              } catch (error) {
+                console.error(error);
+                hasErrors = true;
+                sendNotification(error.message || String(error));
+              }
             }
           }
+          if (!hasErrors) {
+            sendNotification('All cookies were deleted');
+          }
         }
-        sendNotification('All cookies were deleted');
         buttonIcon.setAttribute('href', '../sprites/solid.svg#check');
         setTimeout(() => {
           buttonIcon.setAttribute('href', '../sprites/solid.svg#trash');

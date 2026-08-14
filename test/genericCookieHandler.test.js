@@ -116,3 +116,36 @@ test('GenericCookieHandler - removeCookie calls chrome.cookies.remove', async ()
     storeId: 'firefox-container-1',
   });
 });
+
+test('GenericCookieHandler - removeCookie on Safari queries all cookies and removes each matching domain', async () => {
+  const { detector, stubs } = createSinonBrowserMock({
+    browserName: 'safari',
+  });
+  stubs.cookies.getAll.resolves([
+    { name: 'session_token', domain: 'example.com' },
+    { name: 'session_token', domain: '.example.com' },
+    { name: 'unrelated_cookie', domain: 'other.com' },
+  ]);
+  stubs.cookies.remove.resolves({ name: 'session_token' });
+
+  const handler = new GenericCookieHandler(detector);
+  handler.currentTab = {
+    url: 'https://example.com/page',
+    cookieStoreId: '0',
+  };
+
+  await handler.removeCookie('session_token', 'https://example.com/page');
+
+  assert.equal(stubs.cookies.getAll.calledOnce, true);
+  assert.equal(stubs.cookies.remove.callCount, 2);
+  assert.deepEqual(stubs.cookies.remove.firstCall.args[0], {
+    name: 'session_token',
+    url: 'http://example.com',
+    storeId: '0',
+  });
+  assert.deepEqual(stubs.cookies.remove.secondCall.args[0], {
+    name: 'session_token',
+    url: 'http://.example.com',
+    storeId: '0',
+  });
+});

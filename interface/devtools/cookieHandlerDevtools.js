@@ -42,10 +42,14 @@ export class CookieHandlerDevtools extends GenericCookieHandler {
    * @return {Promise}
    */
   async getAllCookies() {
-    return this.sendMessage('getAllCookies', {
+    const response = await this.sendMessage('getAllCookies', {
       url: this.currentTab.url,
       storeId: this.currentTab.cookieStoreId,
     });
+    if (response && response.success === false) {
+      throw new Error(response.error || 'Failed to get cookies');
+    }
+    return response;
   }
 
   /**
@@ -72,11 +76,15 @@ export class CookieHandlerDevtools extends GenericCookieHandler {
    * @return {Promise}
    */
   async removeCookie(name, url) {
-    return this.sendMessage('removeCookie', {
+    const response = await this.sendMessage('removeCookie', {
       name: name,
       url: url,
       storeId: this.currentTab.cookieStoreId,
     });
+    if (response && response.success === false) {
+      throw new Error(response.error || 'Failed to remove cookie');
+    }
+    return response;
   }
 
   /**
