@@ -308,7 +308,7 @@ export class OptionsHandler extends EventEmitter {
     );
     switch (request.type) {
       case 'optionsChanged': {
-        if (request.data.from == this.guid) {
+        if (request.data.from === this.guid) {
           return;
         }
         const oldOptions = this.options;

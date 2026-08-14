@@ -17,7 +17,7 @@ export class CookieHandlerDevtools extends GenericCookieHandler {
     this.backgroundPageConnection = this.browserDetector
       .getApi()
       .runtime.connect({ name: 'panel' });
-    this.updateCurrentTab(this.init);
+    this.updateCurrentTab().then(this.init);
   }
 
   /**
@@ -56,9 +56,13 @@ export class CookieHandlerDevtools extends GenericCookieHandler {
    * @return {Promise}
    */
   async saveCookie(cookie, url) {
-    return this.sendMessage('saveCookie', {
+    const response = await this.sendMessage('saveCookie', {
       cookie: this.prepareCookie(cookie, url),
     });
+    if (response && response.success === false) {
+      throw new Error(response.error || 'Failed to save cookie');
+    }
+    return response?.cookie ?? response;
   }
 
   /**
@@ -121,28 +125,24 @@ export class CookieHandlerDevtools extends GenericCookieHandler {
 
   /**
    * Retrieves the informations of the current tab from the background script.
-   * @param {*} callback
    */
-  updateCurrentTab = callback => {
-    const self = this;
-    this.sendMessage('getCurrentTab', null).then(
-      function (tabInfo) {
-        const newTab =
-          tabInfo[0].id !== self.currentTabId ||
-          tabInfo[0].url !== self.currentTab.url;
-        self.currentTabId = tabInfo[0].id;
-        self.currentTab = tabInfo[0];
-        if (newTab && self.isReady) {
-          self.emit('cookiesChanged');
-        }
-        if (callback) {
-          callback();
-        }
-      },
-      function (e) {
-        console.log('failed to update current tab', e);
+  updateCurrentTab = async () => {
+    try {
+      const tabInfo = await this.sendMessage('getCurrentTab', null);
+      if (!tabInfo || !tabInfo[0]) {
+        return;
       }
-    );
+      const newTab =
+        tabInfo[0].id !== this.currentTabId ||
+        tabInfo[0].url !== this.currentTab.url;
+      this.currentTabId = tabInfo[0].id;
+      this.currentTab = tabInfo[0];
+      if (newTab && this.isReady) {
+        this.emit('cookiesChanged');
+      }
+    } catch (e) {
+      console.log('failed to update current tab', e);
+    }
   };
 
   /**

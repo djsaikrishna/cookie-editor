@@ -49,15 +49,17 @@ export class PermissionHandler {
     const testPermission = {
       origins: [url],
     };
-    try {
-      const { protocol, hostname } = new URL(url);
-      const rootDomain = this.getRootDomainName(hostname);
-      testPermission.origins = [
-        `${protocol}//${hostname}/*`,
-        `${protocol}//*.${rootDomain}/*`,
-      ];
-    } catch (err) {
-      console.error(err);
+    if (url !== '<all_urls>') {
+      try {
+        const { protocol, hostname } = new URL(url);
+        const rootDomain = this.getRootDomainName(hostname);
+        testPermission.origins = [
+          `${protocol}//${hostname}/*`,
+          `${protocol}//*.${rootDomain}/*`,
+        ];
+      } catch (err) {
+        // Fall back to original url/pattern if not standard URL
+      }
     }
 
     // If we don't have access to the permission API, assume we have
@@ -80,15 +82,17 @@ export class PermissionHandler {
     const permission = {
       origins: [url],
     };
-    try {
-      const { protocol, hostname } = new URL(url);
-      const rootDomain = this.getRootDomainName(hostname);
-      permission.origins = [
-        `${protocol}//${hostname}/*`,
-        `${protocol}//*.${rootDomain}/*`,
-      ];
-    } catch (err) {
-      console.error(err);
+    if (url !== '<all_urls>') {
+      try {
+        const { protocol, hostname } = new URL(url);
+        const rootDomain = this.getRootDomainName(hostname);
+        permission.origins = [
+          `${protocol}//${hostname}/*`,
+          `${protocol}//*.${rootDomain}/*`,
+        ];
+      } catch (err) {
+        // Fall back to original url/pattern if not standard URL
+      }
     }
     return this.browserDetector.getApi().permissions.request(permission);
   }

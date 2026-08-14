@@ -20,7 +20,7 @@ export class GenericStorageHandler extends EventEmitter {
    */
   async getLocal(key) {
     const data = await this.browserDetector.getApi().storage.local.get([key]);
-    return data[key] ?? null;
+    return data?.[key] ?? null;
   }
 
   /**
@@ -30,9 +30,6 @@ export class GenericStorageHandler extends EventEmitter {
    * @return {Promise}
    */
   async setLocal(key, data) {
-    const dataObj = {};
-    dataObj[key] = data;
-
-    return this.browserDetector.getApi().storage.local.set(dataObj);
+    return this.browserDetector.getApi().storage.local.set({ [key]: data });
   }
 }

@@ -2,7 +2,7 @@ import { BrowserDetector } from './interface/lib/browserDetector.js';
 import { Browsers } from './interface/lib/browsers.js';
 import { PermissionHandler } from './interface/lib/permissionHandler.js';
 
-(function () {
+(async function () {
   console.log('starting background script');
   // TODO: Separate connections from CookieHandler and OptionsHandler.
   // It would also be cool to separate their whole behavior in separate class
@@ -11,26 +11,23 @@ import { PermissionHandler } from './interface/lib/permissionHandler.js';
   const browserDetector = new BrowserDetector();
   const permissionHandler = new PermissionHandler(browserDetector);
 
-  isFirefoxAndroid(function (response) {
-    if (response) {
-      const popupOptions = {
-        popup: '/interface/popup-mobile/cookie-list.html',
-      };
-      browserDetector.getApi().action.setPopup(popupOptions);
-    }
-  });
-  isSafariIos(function (response) {
-    if (response) {
-      // If we detect the user is on iOS, mark the browser
-      // as Safari in case it was edge or something else.
-      browserDetector.overrideBrowserName(Browsers.Safari);
-      console.log('Setting up iOS popup');
-      const popupOptions = {
-        popup: '/interface/popup-mobile/cookie-list.html',
-      };
-      browserDetector.getApi().action.setPopup(popupOptions);
-    }
-  });
+  if (await isFirefoxAndroid()) {
+    const popupOptions = {
+      popup: '/interface/popup-mobile/cookie-list.html',
+    };
+    browserDetector.getApi().action.setPopup(popupOptions);
+  }
+
+  if (await isSafariIos()) {
+    // If we detect the user is on iOS, mark the browser
+    // as Safari in case it was edge or something else.
+    browserDetector.overrideBrowserName(Browsers.Safari);
+    console.log('Setting up iOS popup');
+    const popupOptions = {
+      popup: '/interface/popup-mobile/cookie-list.html',
+    };
+    browserDetector.getApi().action.setPopup(popupOptions);
+  }
 
   if (browserDetector.supportsSidePanel()) {
     browserDetector
@@ -65,26 +62,23 @@ import { PermissionHandler } from './interface/lib/permissionHandler.js';
     console.log('message received: ' + (request.type || 'unknown'));
     switch (request.type) {
       case 'getTabs': {
-        browserDetector.getApi().tabs.query({}, function (tabs) {
-          sendResponse(tabs);
-        });
+        browserDetector.getApi().tabs.query({}).then(sendResponse);
         return true;
       }
       case 'getCurrentTab': {
         browserDetector
           .getApi()
-          .tabs.query(
-            { active: true, currentWindow: true },
-            function (tabInfo) {
-              sendResponse(tabInfo);
-            }
-          );
+          .tabs.query({ active: true, currentWindow: true })
+          .then(sendResponse);
         return true;
       }
       case 'getAllCookies': {
         const getAllCookiesParams = {
           url: request.params.url,
         };
+        if (request.params.storeId) {
+          getAllCookiesParams.storeId = request.params.storeId;
+        }
         browserDetector
           .getApi()
           .cookies.getAll(getAllCookiesParams)
@@ -97,11 +91,14 @@ import { PermissionHandler } from './interface/lib/permissionHandler.js';
           .cookies.set(request.params.cookie)
           .then(
             cookie => {
-              sendResponse(null, cookie);
+              sendResponse({ success: true, cookie });
             },
             error => {
               console.error('Failed to create cookie', error);
-              sendResponse(error.message, null);
+              sendResponse({
+                success: false,
+                error: error?.message || String(error),
+              });
             }
           );
         return true;
@@ -224,21 +221,21 @@ import { PermissionHandler } from './interface/lib/permissionHandler.js';
 
   /**
    * Special function to detect if we are running on Firefox for Android.
-   * @param {function} callback Responds true if it is Firefox on android,
+   * @return {Promise<boolean>} Responds true if it is Firefox on android,
    *     otherwise false.
    */
-  function isFirefoxAndroid(callback) {
+  async function isFirefoxAndroid() {
     if (!browserDetector.isFirefox()) {
-      callback(false);
-      return;
+      return false;
     }
 
-    browserDetector
-      .getApi()
-      .runtime.getPlatformInfo()
-      .then(info => {
-        callback(info.os === 'android');
-      });
+    try {
+      const info = await browserDetector.getApi().runtime.getPlatformInfo();
+      return info.os === 'android';
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
   }
 
   /**
@@ -247,16 +244,17 @@ import { PermissionHandler } from './interface/lib/permissionHandler.js';
    * Any browser running on iOS would be considered Safari since they
    * all are wrappers.
    *
-   * @param {function} callback Responds true if it is Safari on iOS,
+   * @return {Promise<boolean>} Responds true if it is Safari on iOS,
    *     otherwise false.
    */
-  function isSafariIos(callback) {
-    browserDetector
-      .getApi()
-      .runtime.getPlatformInfo()
-      .then(info => {
-        console.log('check for safari on ios: ', info.os);
-        callback(info.os === 'ios');
-      });
+  async function isSafariIos() {
+    try {
+      const info = await browserDetector.getApi().runtime.getPlatformInfo();
+      console.log('check for safari on ios: ', info.os);
+      return info.os === 'ios';
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
   }
 })();

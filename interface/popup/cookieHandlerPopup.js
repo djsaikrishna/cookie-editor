@@ -60,16 +60,16 @@ export class CookieHandlerPopup extends GenericCookieHandler {
    * @param {object} changeInfo Properties of the tab that changed.
    * @param {object} _tab
    */
-  onTabsChanged = (tabId, changeInfo, _tab) => {
+  onTabsChanged = async (tabId, changeInfo, _tab) => {
     if (
       tabId === this.currentTabId &&
       (changeInfo.url || changeInfo.status === 'complete')
     ) {
       console.log('tabChanged!');
-      this.browserDetector
+      const tabInfo = await this.browserDetector
         .getApi()
-        .tabs.query({ active: true, currentWindow: true })
-        .then(this.updateCurrentTab);
+        .tabs.query({ active: true, currentWindow: true });
+      this.updateCurrentTab(tabInfo);
     }
   };
 
@@ -77,11 +77,11 @@ export class CookieHandlerPopup extends GenericCookieHandler {
    * Event handler for when a tab is being activated.
    * @param {object} activeInfo Info about the event.
    */
-  onTabActivated = activeInfo => {
-    this.browserDetector
+  onTabActivated = async activeInfo => {
+    const tabInfo = await this.browserDetector
       .getApi()
-      .tabs.query({ active: true, currentWindow: true })
-      .then(this.updateCurrentTab);
+      .tabs.query({ active: true, currentWindow: true });
+    this.updateCurrentTab(tabInfo);
   };
 
   /**
