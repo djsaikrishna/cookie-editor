@@ -143,7 +143,7 @@ document.addEventListener('DOMContentLoaded', async event => {
   async function getAllCookies() {
     await getAllPermissions();
     const cookies = await cookieHandler.getAllCookiesInBrowser();
-    const loadedCookies = [];
+    const loadedCookies = {};
     for (const cookie of cookies) {
       const id = Cookie.hashCode(cookie);
       loadedCookies[id] = new Cookie(id, cookie, optionHandler);

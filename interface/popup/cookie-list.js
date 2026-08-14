@@ -207,7 +207,7 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
       }
 
       if (oldName !== name || oldHostOnly !== hostOnly) {
-        await removeCookieAsync(oldName, getCurrentTabUrl());
+        await removeCookie(oldName, getCurrentTabUrl());
       }
 
       // Should probably put in a function to prevent duplication
@@ -221,7 +221,7 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
           cookieContainer.showSuccessAnimation();
         }
       } catch (error) {
-        sendNotification(error);
+        sendNotification(error.message || String(error));
       }
     }
 
@@ -431,7 +431,7 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
             await cookieHandler.saveCookie(cookie, getCurrentTabUrl());
           } catch (error) {
             console.error(error);
-            sendNotification(error);
+            sendNotification(error.message || String(error));
           }
         }
 
@@ -511,13 +511,16 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
 
     adjustWidthIfSmaller();
 
-    if (chrome && chrome.runtime && chrome.runtime.getBrowserInfo) {
-      chrome.runtime.getBrowserInfo(function (info) {
-        const mainVersion = info.version.split('.')[0];
+    if (browserDetector.getApi()?.runtime?.getBrowserInfo) {
+      try {
+        const info = await browserDetector.getApi().runtime.getBrowserInfo();
+        const mainVersion = parseInt(info.version.split('.')[0], 10);
         if (mainVersion < 57) {
           containerCookie.style.height = '600px';
         }
-      });
+      } catch (e) {
+        /* empty */
+      }
     }
   });
 
@@ -958,18 +961,6 @@ import { CookieHandlerPopup } from './cookieHandlerPopup.js';
    * @param {string} url Url of the tab that contains the cookie.
    */
   async function removeCookie(name, url) {
-    await cookieHandler.removeCookie(name, url || getCurrentTabUrl());
-    if (browserDetector.isSafari()) {
-      onCookiesChanged();
-    }
-  }
-
-  /**
-   * Removes a cookie from the current tab.
-   * @param {string} name Name of the cookie to remove.
-   * @param {string} url Url of the tab that contains the cookie.
-   */
-  async function removeCookieAsync(name, url) {
     await cookieHandler.removeCookie(name, url || getCurrentTabUrl());
     if (browserDetector.isSafari()) {
       onCookiesChanged();

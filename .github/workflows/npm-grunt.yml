@@ -45,4 +45,6 @@ jobs:
         run: npm install
 
       - name: Test
-        run: grunt exec:lint
+        run: |
+          npm test
+          grunt exec:lint
